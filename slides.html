@@ -1,0 +1,918 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<title>Notion Teardown</title>
+<style>
+@font-face {
+  font-family: 'Fraunces';
+  src: local('Fraunces');
+}
+
+:root {
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --surface-2: #ece8de;
+  --ink: #1c1a16;
+  --ink-soft: #55504a;
+  --ink-faint: #8a8479;
+  --line: #ddd7c9;
+  --accent: #b6752c;
+  --accent-soft: #f0e2cc;
+  --accent-ink: #6b3f13;
+  --good: #3d6b4f;
+  --good-soft: #e2ecdf;
+  --bad: #9c4630;
+  --bad-soft: #f3e0d6;
+  --hold: #3c5a78;
+  --hold-soft: #e2e9f0;
+  --shadow: 0 18px 40px -20px rgba(28, 26, 22, 0.35);
+}
+
+:root:not([data-theme="light"]) {
+  @media (prefers-color-scheme: dark) {
+    --bg: #15171c;
+    --surface: #1d2027;
+    --surface-2: #262a33;
+    --ink: #ece9e1;
+    --ink-soft: #a7a89f;
+    --ink-faint: #74776f;
+    --line: #363b46;
+    --accent: #e0ac5f;
+    --accent-soft: #3a2f1c;
+    --accent-ink: #f3d19c;
+    --good: #8fbf9f;
+    --good-soft: #223229;
+    --bad: #d99274;
+    --bad-soft: #392621;
+    --hold: #8fadc9;
+    --hold-soft: #212b36;
+    --shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.6);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #15171c;
+  --surface: #1d2027;
+  --surface-2: #262a33;
+  --ink: #ece9e1;
+  --ink-soft: #a7a89f;
+  --ink-faint: #74776f;
+  --line: #363b46;
+  --accent: #e0ac5f;
+  --accent-soft: #3a2f1c;
+  --accent-ink: #f3d19c;
+  --good: #8fbf9f;
+  --good-soft: #223229;
+  --bad: #d99274;
+  --bad-soft: #392621;
+  --hold: #8fadc9;
+  --hold-soft: #212b36;
+  --shadow: 0 18px 40px -20px rgba(0, 0, 0, 0.6);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.mono {
+  font-family: 'IBM Plex Mono', 'Consolas', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+h1, h2, h3 {
+  font-family: 'Fraunces', 'Source Serif Pro', Georgia, serif;
+  text-wrap: balance;
+  margin: 0;
+  font-weight: 600;
+}
+
+#deck {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  padding: clamp(28px, 5vw, 72px) clamp(36px, 7vw, 96px);
+  opacity: 0;
+}
+
+.slide.active {
+  display: flex;
+  opacity: 1;
+  animation: rise 0.5s ease both;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slide.active { animation: none; }
+}
+
+.eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.slide-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 22px;
+}
+
+.slide h2 {
+  font-size: clamp(1.7rem, 3.4vw, 2.6rem);
+  line-height: 1.12;
+}
+
+.subtitle {
+  font-size: clamp(1rem, 1.5vw, 1.2rem);
+  color: var(--ink-soft);
+  max-width: 62ch;
+  line-height: 1.5;
+}
+
+/* ---- Progress + chrome ---- */
+.chrome {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pageno {
+  position: absolute;
+  top: 24px;
+  right: 32px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.deckname {
+  position: absolute;
+  top: 24px;
+  left: 32px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.progress-track {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--line);
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.nav-hint {
+  position: absolute;
+  bottom: 18px;
+  right: 32px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  pointer-events: auto;
+  display: flex;
+  gap: 14px;
+}
+
+.nav-btn {
+  background: none;
+  border: none;
+  color: var(--ink-faint);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.nav-btn:hover, .nav-btn:focus-visible { color: var(--ink); outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* ---- Title slide ---- */
+.title-slide {
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0;
+}
+.title-slide .kicker {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 22px;
+}
+.title-slide h1 {
+  font-size: clamp(2.6rem, 7vw, 5.2rem);
+  line-height: 1.02;
+  max-width: 16ch;
+}
+.title-slide .dek {
+  margin-top: 28px;
+  font-size: clamp(1.05rem, 1.8vw, 1.35rem);
+  color: var(--ink-soft);
+  max-width: 56ch;
+  line-height: 1.55;
+}
+.title-meta {
+  margin-top: auto;
+  padding-top: 40px;
+  display: flex;
+  gap: 48px;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+.title-meta .label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* ---- Timeline slide ---- */
+.timeline {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.timeline-track {
+  position: relative;
+  height: 3px;
+  background: var(--line);
+  margin: 8px 0 0;
+  border-radius: 2px;
+}
+.timeline-track::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: var(--w, 100%);
+  background: var(--accent);
+  border-radius: 2px;
+}
+.timeline-dots {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin-top: -3px;
+}
+.tdot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding-top: 18px;
+  border-top: 3px solid var(--accent);
+}
+.tdot .date {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.tdot .name {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 1.02rem;
+  line-height: 1.25;
+}
+.tdot .desc {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+/* ---- Milestone deep-dive ---- */
+.milestone {
+  display: grid;
+  grid-template-columns: 0.9fr 1.6fr;
+  gap: clamp(24px, 4vw, 56px);
+  align-items: center;
+}
+.milestone-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  padding: 5px 12px;
+  border-radius: 999px;
+  width: fit-content;
+}
+.milestone-left h2 { margin-top: 14px; font-size: clamp(1.8rem, 3.4vw, 2.6rem); }
+.milestone-left .mdate { margin-top: 10px; color: var(--ink-faint); font-family: 'IBM Plex Mono', monospace; font-size: 0.85rem; }
+.milestone-right {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.mcard {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px 22px;
+  box-shadow: var(--shadow);
+}
+.mcard .mlabel {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 8px;
+  display: block;
+}
+.mcard p { margin: 0; line-height: 1.55; font-size: 0.98rem; color: var(--ink); }
+
+/* ---- Two column generic ---- */
+.cols2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px 24px;
+  box-shadow: var(--shadow);
+}
+.panel h3 {
+  font-size: 1.15rem;
+  margin-bottom: 14px;
+}
+.panel .panel-kicker {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  display: block;
+  margin-bottom: 6px;
+}
+.panel ul {
+  margin: 0;
+  padding-left: 1.1em;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.panel li { font-size: 0.94rem; line-height: 1.45; color: var(--ink-soft); }
+.panel li b { color: var(--ink); }
+
+/* ---- JTBD table ---- */
+.jtbd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 1.3fr;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.jtbd-grid > div {
+  background: var(--surface);
+  padding: 16px 18px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.jtbd-grid .head {
+  background: var(--surface-2);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.jtbd-grid .rowlabel {
+  background: var(--surface-2);
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+
+/* ---- Forces ---- */
+.forces {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+.force-card {
+  border-radius: 14px;
+  padding: 18px 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.force-card .ftitle {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.force-card.attract { border-top: 4px solid var(--hold); }
+.force-card.repel { border-top: 4px solid var(--bad); }
+.force-card.retain { border-top: 4px solid var(--good); }
+.force-card.leave { border-top: 4px solid var(--accent); }
+.force-card ul { margin: 0; padding-left: 1.05em; display: flex; flex-direction: column; gap: 6px; }
+.force-card li { font-size: 0.8rem; line-height: 1.4; color: var(--ink-soft); }
+
+/* ---- Predictions ---- */
+.predictions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pred-row {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 20px;
+  align-items: start;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+.pred-row:last-child { border-bottom: none; }
+.pred-num {
+  font-family: 'Fraunces', serif;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--accent);
+  line-height: 1;
+}
+.pred-tag {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  padding: 3px 9px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-bottom: 8px;
+}
+.pred-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 6px; }
+.pred-arg { font-size: 0.88rem; color: var(--ink-soft); line-height: 1.5; }
+
+/* ---- Closing ---- */
+.closing {
+  justify-content: center;
+  gap: 24px;
+}
+.closing .big {
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  max-width: 20ch;
+}
+.closing .stack {
+  display: flex;
+  gap: 40px;
+  margin-top: 20px;
+}
+.closing .stack div .label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 6px;
+}
+.closing .stack div .val { font-size: 0.98rem; color: var(--ink-soft); max-width: 34ch; line-height: 1.4; }
+
+@media (max-width: 820px) {
+  .milestone { grid-template-columns: 1fr; }
+  .cols2 { grid-template-columns: 1fr; }
+  .forces { grid-template-columns: 1fr 1fr; }
+  .timeline-dots { grid-template-columns: 1fr 1fr; row-gap: 20px; }
+  .jtbd-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div id="deck">
+
+  <!-- 1. TITLE -->
+  <section class="slide title-slide active" data-title="Mở đầu">
+    <div class="kicker">Memo Teardown · Product Analysis</div>
+    <h1>Notion —<br>the all-in-one workspace</h1>
+    <p class="dek">Từ app ghi chú sinh viên (2019) đến nền tảng phát triển ứng dụng AI (2026): năm cột mốc kể lại một sản phẩm liên tục tự định nghĩa lại chính mình.</p>
+    <div class="title-meta">
+      <div>
+        <span class="label">Nhóm</span>
+        Day16-01620-NguyenTrungHieu
+      </div>
+      <div>
+        <span class="label">Thành viên</span>
+        Nguyễn Trung Hiếu · Đặng Ngọc Anh
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. WHY THIS PRODUCT -->
+  <section class="slide" data-title="Vì sao Notion">
+    <div class="eyebrow">Vì sao chọn sản phẩm này</div>
+    <div class="slide-body">
+      <h2 style="max-width: 20ch;">Một app ghi chú tự biến mình thành bốn sản phẩm cùng lúc</h2>
+      <div class="cols2">
+        <div class="panel">
+          <span class="panel-kicker">Xuất phát điểm</span>
+          <ul>
+            <li>Ra đời <b>2015</b>, đa nền tảng, đã có lượng lớn người dùng trả phí</li>
+            <li>Nhận nhiều giải thưởng trên Product Hunt qua các lần ra mắt tính năng</li>
+            <li>Chỉ tích hợp AI muộn — từ <b>2022</b>, mở ra một đường dịch chuyển rõ để phân tích</li>
+          </ul>
+        </div>
+        <div class="panel">
+          <span class="panel-kicker">Bốn nhóm sản phẩm cùng lúc</span>
+          <ul>
+            <li><b>Ghi chú cá nhân</b> — đối đầu Evernote, Bear</li>
+            <li><b>Quản trị tri thức</b> — đối đầu Obsidian, Roam</li>
+            <li><b>Wiki cộng tác</b> — đối đầu Confluence</li>
+            <li><b>Quản lý công việc</b> — đối đầu Asana, Coda</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. TIMELINE OVERVIEW -->
+  <section class="slide" data-title="Timeline">
+    <div class="eyebrow">§1 · Timeline các cập nhật lớn</div>
+    <div class="slide-body">
+      <h2>Năm mốc, một đường cong tăng trưởng</h2>
+      <div class="timeline">
+        <div class="timeline-track"></div>
+        <div class="timeline-dots">
+          <div class="tdot">
+            <span class="date">09 / 2019</span>
+            <span class="name">Notion for Students</span>
+            <span class="desc">Mở tệp người dùng — land-grab campus</span>
+          </div>
+          <div class="tdot">
+            <span class="date">05 / 2021</span>
+            <span class="name">Notion API (Beta)</span>
+            <span class="desc">Mở nền tảng kỹ thuật</span>
+          </div>
+          <div class="tdot">
+            <span class="date">11 / 2022</span>
+            <span class="name">Notion AI (Alpha)</span>
+            <span class="desc">Mở tính năng AI, nhóm nhỏ</span>
+          </div>
+          <div class="tdot">
+            <span class="date">02 / 2023</span>
+            <span class="name">Public Launch AI</span>
+            <span class="desc">Công khai AI cho toàn bộ user</span>
+          </div>
+          <div class="tdot">
+            <span class="date">05 / 2026</span>
+            <span class="name">Developer Platform</span>
+            <span class="desc">Mở hệ sinh thái ứng dụng bên thứ ba</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. MILESTONE 1: Students -->
+  <section class="slide" data-title="Mốc 1">
+    <div class="milestone">
+      <div class="milestone-left">
+        <span class="milestone-tag">Mốc 01 · Mở tệp user</span>
+        <h2>Notion for Students</h2>
+        <div class="mdate mono">17 tháng 9, 2019</div>
+      </div>
+      <div class="milestone-right">
+        <div class="mcard">
+          <span class="mlabel">Context lúc đó</span>
+          <p>Notion vừa cán mốc 1 triệu người dùng. Cạnh tranh với Evernote, OneNote, Google Docs ở mảng ghi chú; ở phân khúc sinh viên là Google Workspace (miễn phí email trường) và các app ghi chú thuần như Bear, Simplenote.</p>
+        </div>
+        <div class="mcard">
+          <span class="mlabel">Nguyên lý</span>
+          <p>Mở khóa Personal Pro miễn phí cho sinh viên/giáo viên bằng email trường — chiến lược "chiếm lấy đại học" để xây thói quen dùng sớm, biến sinh viên thành đại sứ thương hiệu khi ra trường và mang Notion vào công sở.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. MILESTONE 2: API -->
+  <section class="slide" data-title="Mốc 2">
+    <div class="milestone">
+      <div class="milestone-left">
+        <span class="milestone-tag">Mốc 02 · Mở nền tảng</span>
+        <h2>Notion API (Public Beta)</h2>
+        <div class="mdate mono">13 tháng 5, 2021</div>
+      </div>
+      <div class="milestone-right">
+        <div class="mcard">
+          <span class="mlabel">Context lúc đó</span>
+          <p>Airtable, Coda, Slack đã có API và hệ sinh thái tích hợp/automation (Zapier, IFTTT) từ trước. Notion vẫn là một "walled garden" khiến dữ liệu khó kết nối ra ngoài.</p>
+        </div>
+        <div class="mcard">
+          <span class="mlabel">Nguyên lý</span>
+          <p>Mở Notion từ ứng dụng đóng thành nền tảng: cho phép Zapier, Typeform, Automate.io và cộng đồng developer đọc/ghi dữ liệu Notion — đặt tiền đề cho hệ sinh thái tích hợp bên thứ ba.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. MILESTONE 3+4: AI -->
+  <section class="slide" data-title="Mốc 3-4">
+    <div class="milestone">
+      <div class="milestone-left">
+        <span class="milestone-tag">Mốc 03–04 · Mở AI</span>
+        <h2>Notion AI: Alpha → Public</h2>
+        <div class="mdate mono">11/2022 · 02/2023</div>
+      </div>
+      <div class="milestone-right">
+        <div class="mcard">
+          <span class="mlabel">Context lúc đó</span>
+          <p>Evernote mạnh capture nhanh &amp; web clipper. OneNote mạnh viết tay, ghi âm. Obsidian mạnh markdown cục bộ, backlinks, kiểm soát dữ liệu. Không đối thủ nào có AI tích hợp sâu vào workspace.</p>
+        </div>
+        <div class="mcard">
+          <span class="mlabel">Nguyên lý</span>
+          <p>Theo triết lý Doug Engelbart: máy tính như công cụ giải quyết vấn đề phức tạp của con người. Alpha (2022) thử nghiệm trong nhóm nhỏ; Public Launch (2023) công khai cho toàn bộ user, chuyển Notion từ "ghi chú thông minh" sang workspace tri thức + quản lý công việc.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. MILESTONE 5: Dev Platform -->
+  <section class="slide" data-title="Mốc 5">
+    <div class="milestone">
+      <div class="milestone-left">
+        <span class="milestone-tag">Mốc 05 · Mở hệ sinh thái</span>
+        <h2>Notion Developer Platform</h2>
+        <div class="mdate mono">14 tháng 5, 2026</div>
+      </div>
+      <div class="milestone-right">
+        <div class="mcard">
+          <span class="mlabel">Context lúc đó</span>
+          <p>Sau giai đoạn AI hóa sản phẩm (Notion AI, Custom Agents), các nền tảng khác — Slack, Salesforce, Airtable — đã có developer platform/marketplace riêng để bên thứ ba xây app trên nền dữ liệu của họ.</p>
+        </div>
+        <div class="mcard">
+          <span class="mlabel">Nguyên lý</span>
+          <p>"Build on Notion, not just inside it" — nâng cấp từ API đơn thuần (2021) thành nền tảng phát triển đầy đủ, biến Notion thành platform thay vì chỉ là một ứng dụng workspace.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. WHY THESE MILESTONES -->
+  <section class="slide" data-title="Chọn mốc">
+    <div class="eyebrow">Vì sao chọn những mốc này</div>
+    <div class="slide-body">
+      <h2 style="max-width: 26ch;">Mở user → mở nền tảng → mở AI → mở hệ sinh thái</h2>
+      <div class="cols2">
+        <div class="panel">
+          <span class="panel-kicker">Giữ lại</span>
+          <p style="font-size:0.95rem; line-height:1.55; color: var(--ink-soft); margin:0;">Năm mốc này vẽ đúng một đường cong chiến lược liên tục: mỗi mốc mở ra một "cánh cửa" mới cho Notion — người dùng, dữ liệu, trí tuệ, rồi ứng dụng của bên thứ ba.</p>
+        </div>
+        <div class="panel">
+          <span class="panel-kicker">Loại ra</span>
+          <p style="font-size:0.95rem; line-height:1.55; color: var(--ink-soft); margin:0;">Các mốc vận hành nội bộ — đổi pricing, redesign UI, launch phụ trợ nhỏ lẻ (Notion Calendar, Notion Mail) — không đại diện bước ngoặt chiến lược, chỉ mở rộng danh mục chứ không dịch chuyển tệp user hay mô hình sản phẩm cốt lõi.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. JTBD -->
+  <section class="slide" data-title="Tệp user & JTBD">
+    <div class="eyebrow">§2 · Tệp user &amp; JTBD</div>
+    <div class="slide-body">
+      <h2>Từ nghi ngờ AI đến phụ thuộc vào AI</h2>
+      <div class="jtbd-grid">
+        <div class="head"> </div>
+        <div class="head">Early adopters</div>
+        <div class="head">Tệp hiện tại</div>
+
+        <div class="rowlabel">Đặc điểm</div>
+        <div>Không phải fan AI, chưa từng nghĩ sẽ dùng AI hỗ trợ công việc — nhưng sẵn sàng thử tính năng mới tích hợp sẵn.</div>
+        <div>Đã dùng Notion cho nhiều việc khác nhau, yêu thích sự linh hoạt &amp; tùy chỉnh; tin AI giúp làm việc hiệu quả, tiết kiệm thời gian hơn.</div>
+
+        <div class="rowlabel">JTBD chính</div>
+        <div>Viết nội dung từ đầu; tóm tắt/trích xuất; dịch &amp; sửa ngữ pháp; viết lại văn phong; giải thích khái niệm.</div>
+        <div>Tìm kiếm nội dung cá nhân; tổng hợp từ nhiều nguồn; sáng tạo theo yêu cầu; trích xuất dữ liệu có cấu trúc; lên kế hoạch chi tiết.</div>
+
+        <div class="rowlabel">Trước đó làm sao</div>
+        <div>Tự viết, tự tóm tắt tay; copy sang Google Translate/DeepL rồi paste lại; tự viết lại đoạn văn; chuyển sang Google/Wikipedia rồi quay lại ghi chú.</div>
+        <div>AI tạo nháp — người chỉnh sửa; AI tóm tắt, trích xuất, dịch, sửa, giải thích ngay trong Notion.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10. DỊCH CHUYỂN TỆP -->
+  <section class="slide" data-title="Dịch chuyển tệp">
+    <div class="eyebrow">Dịch chuyển tệp user</div>
+    <div class="slide-body">
+      <h2 style="max-width: 24ch;">Public Launch AI là điểm bùng — nhưng 2019 và 2021 là điều kiện cần</h2>
+      <div class="cols2">
+        <div class="panel" style="border-left: 4px solid var(--accent);">
+          <span class="panel-kicker">Mốc gây dịch chuyển</span>
+          <h3 style="font-size:1.05rem; margin-bottom:8px;">Public Launch Notion AI (2023)</h3>
+          <p style="font-size:0.92rem; color:var(--ink-soft); line-height:1.5; margin:0;">Mở rộng đối tượng từ early adopters sang đại đa số user; đánh dấu chuyển dịch từ "ghi chú thông minh" sang workspace tri thức + quản lý công việc.</p>
+        </div>
+        <div class="panel">
+          <span class="panel-kicker">Điều kiện nền</span>
+          <p style="font-size:0.92rem; color:var(--ink-soft); line-height:1.5; margin:0;"><b style="color:var(--ink);">Students (2019)</b> và <b style="color:var(--ink);">API Beta (2021)</b> không trực tiếp gây dịch chuyển, nhưng là nguyên liệu: tệp user đông đảo + hệ sinh thái tích hợp mở giúp cột mốc AI 2022–2023 phát huy tác dụng ở quy mô lớn.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11. SWITCHING COST -->
+  <section class="slide" data-title="Switching cost">
+    <div class="eyebrow">Switching cost — 4 forces</div>
+    <div class="slide-body">
+      <h2>Điều gì giữ user ở lại, điều gì kéo họ đi</h2>
+      <div class="forces">
+        <div class="force-card attract">
+          <span class="ftitle">Lực hút</span>
+          <ul>
+            <li>AI tích hợp liền mạch, không cần đổi app</li>
+            <li>Giao diện quen thuộc, đáng tin cậy</li>
+            <li>Giảm ma sát học công cụ mới</li>
+          </ul>
+        </div>
+        <div class="force-card repel">
+          <span class="ftitle">Lực đẩy</span>
+          <ul>
+            <li>ChatGPT, Claude, Copilot, Gemini mạnh hơn</li>
+            <li>AI trả phí, giới hạn dùng hàng ngày/tháng</li>
+            <li>Hiệu suất AI không đồng đều</li>
+          </ul>
+        </div>
+        <div class="force-card retain">
+          <span class="ftitle">Lực giữ</span>
+          <ul>
+            <li>Đã đầu tư workflow, template, tri thức</li>
+            <li>Tùy chỉnh cao, phù hợp nhu cầu riêng</li>
+            <li>Cộng đồng &amp; tài nguyên hỗ trợ lớn</li>
+          </ul>
+        </div>
+        <div class="force-card leave">
+          <span class="ftitle">Lực rời</span>
+          <ul>
+            <li>Di chuyển dữ liệu tốn thời gian, công sức</li>
+            <li>Ngại học công cụ mới</li>
+            <li>Không chắc nền tảng khác tốt hơn</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12. PREDICTIONS -->
+  <section class="slide" data-title="Dự đoán">
+    <div class="eyebrow">§3 · Ba dự đoán hướng đi (6–12 tháng tới)</div>
+    <div class="slide-body">
+      <div class="predictions">
+        <div class="pred-row">
+          <div class="pred-num mono">01</div>
+          <div>
+            <span class="pred-tag">Mở rộng tính năng</span>
+            <div class="pred-title">Advanced Agent Orchestration</div>
+            <div class="pred-arg">Notion 3.6 đã có External Agents trong cùng UI. Bước tiếp theo: các agent giao tiếp, chia sẻ trạng thái, phối hợp workflow end-to-end — nối tiếp Developer Platform (2026) và JTBD "lên kế hoạch chi tiết" hiện tại.</div>
+          </div>
+        </div>
+        <div class="pred-row">
+          <div class="pred-num mono">02</div>
+          <div>
+            <span class="pred-tag">Mở rộng tính năng</span>
+            <div class="pred-title">Cross-Workspace Agent Queries</div>
+            <div class="pred-arg">Agent hiện chỉ hoạt động trong một workspace, nhưng doanh nghiệp lớn có nhiều workspace theo team. Logic tiếp nối tự nhiên của việc mở API (2021) rồi mở Developer Platform (2026): xóa ranh giới dữ liệu giữa các workspace.</div>
+          </div>
+        </div>
+        <div class="pred-row">
+          <div class="pred-num mono">03</div>
+          <div>
+            <span class="pred-tag">Mở rộng tính năng &amp; tập khách hàng</span>
+            <div class="pred-title">Custom Model Support (Bring Your Own LLM)</div>
+            <div class="pred-arg">Hiện chỉ chọn model có sẵn (GPT, Claude, Gemini). Doanh nghiệp lớn cần model riêng (fine-tuned, on-premise) — đáp ứng lực đẩy "đối thủ có model mạnh hơn" và mở tệp khách hàng enterprise nhạy cảm về kiểm soát dữ liệu.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13. CLOSING -->
+  <section class="slide closing" data-title="Kết">
+    <div class="eyebrow">Tổng kết</div>
+    <h2 class="big">Notion không lớn lên bằng một tính năng — mà bằng việc liên tục mở thêm một cánh cửa mới.</h2>
+    <div class="stack">
+      <div>
+        <span class="label">2019 → 2021</span>
+        <span class="val">Mở người dùng, rồi mở dữ liệu</span>
+      </div>
+      <div>
+        <span class="label">2022 → 2023</span>
+        <span class="val">Mở trí tuệ nhân tạo cho toàn bộ workspace</span>
+      </div>
+      <div>
+        <span class="label">2026</span>
+        <span class="val">Mở nền tảng cho hệ sinh thái bên thứ ba</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<div class="chrome">
+  <div class="deckname">Notion Teardown</div>
+  <div class="pageno mono"><span id="cur">1</span> / <span id="total">13</span></div>
+  <div class="progress-track"><div class="progress-fill" id="fill"></div></div>
+  <div class="nav-hint">
+    <button class="nav-btn" id="prevBtn" aria-label="Slide trước">← trước</button>
+    <button class="nav-btn" id="nextBtn" aria-label="Slide sau">sau →</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var total = slides.length;
+  var idx = 0;
+  document.getElementById('total').textContent = total;
+
+  function render() {
+    slides.forEach(function(s, i) {
+      s.classList.toggle('active', i === idx);
+    });
+    document.getElementById('cur').textContent = idx + 1;
+    document.getElementById('fill').style.width = ((idx + 1) / total * 100) + '%';
+  }
+
+  function go(delta) {
+    idx = Math.max(0, Math.min(total - 1, idx + delta));
+    render();
+  }
+
+  document.getElementById('prevBtn').addEventListener('click', function(){ go(-1); });
+  document.getElementById('nextBtn').addEventListener('click', function(){ go(1); });
+
+  window.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(-1); }
+    else if (e.key === 'Home') { idx = 0; render(); }
+    else if (e.key === 'End') { idx = total - 1; render(); }
+  });
+
+  var touchStartX = null;
+  window.addEventListener('touchstart', function(e){ touchStartX = e.touches[0].clientX; });
+  window.addEventListener('touchend', function(e){
+    if (touchStartX === null) return;
+    var dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) go(dx < 0 ? 1 : -1);
+    touchStartX = null;
+  });
+
+  render();
+})();
+</script>
+
+</body>
+</html>
